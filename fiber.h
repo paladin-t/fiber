@@ -201,7 +201,7 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		if (!stack) stack = FIBER_STACK_SIZE;
 		ret->current = primary->current;
 		ret->stack_size = stack;
-		ret->context = CreateFiber(stack, fiber_proc_impl, ret);
+		ret->context = CreateFiber(stack, (FiberRoutine)fiber_proc_impl, ret);
 	} else {
 		ret->current = (fiber_t**)fballoc(sizeof(fiber_t*));
 		*ret->current = ret;
