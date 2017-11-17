@@ -2,6 +2,8 @@
 
 **Header only cross platform wrapper of fiber API**
 
+A [fiber](https://en.wikipedia.org/wiki/Fiber_(computer_science)) is a particularly lightweight thread of execution. Which is useful for implementing coroutine, iterator, lightweight thread, etc.
+
 ### How to use
 
 Just `#include "fiber.h"` before using this library.
