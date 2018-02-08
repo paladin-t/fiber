@@ -3,7 +3,7 @@
 **
 ** For the latest info, see https://github.com/paladin-t/fiber/
 **
-** Copyright (C) 2017 Wang Renxin
+** Copyright (C) 2017 - 2018 Wang Renxin
 **
 ** Just #include "fiber.h" before using this library.
 **
@@ -56,8 +56,11 @@
 
 #include <memory.h>
 #include <stdlib.h>
-#ifdef FB_OS_WIN
+#if defined FB_OS_WIN
 #	include <Windows.h>
+#elif defined FB_OS_APPLE
+#	define _XOPEN_SOURCE 600
+#	include <sys/ucontext.h>
 #else /* FB_OS_WIN */
 #	include <ucontext.h>
 #endif /* FB_OS_WIN */
