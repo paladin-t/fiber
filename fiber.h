@@ -60,7 +60,7 @@
 #	include <Windows.h>
 #elif defined FB_OS_APPLE
 #	define _XOPEN_SOURCE 600
-#	include <sys/ucontext.h>
+#	include <ucontext.h>
 #else /* FB_OS_WIN */
 #	include <ucontext.h>
 #endif /* FB_OS_WIN */
@@ -314,7 +314,7 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 	if (!fb) return false;
 	curr = *fb->current; 
 	*fb->current = fb;
-	swapcontext(curr->context, fb->context);
+	swapcontext((ucontext_t*)curr->context, (ucontext_t*)fb->context);
 
 	return true;
 }
