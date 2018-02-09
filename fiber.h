@@ -204,15 +204,22 @@ FBIMPL static void fiber_proc_impl(fiber_t* fb) {
 }
 
 FBAPI static bool_t fiber_is_current(const fiber_t* const fb) {
+	pthread_t curr;
+	fb_context_t* ctx = 0;
 	if (!fb) return false;
 
-	return *fb->current == fb;
+	curr = pthread_self();
+	ctx = (fb_context_t*)fb->context;
+
+	return !!pthread_equal(curr, ctx->thread);
 }
 
 FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc run, void* userdata) {
 	fiber_t* ret = 0;
 	if ((!primary && run) || (primary && !run)) return ret;
 	ret = (fiber_t*)fballoc(sizeof(fiber_t));
+	ret->proc = run;
+	ret->userdata = userdata;
 	if (primary && run) {
 		fb_context_t* ctx = 0;
 		if (!stack) stack = FIBER_STACK_SIZE;
@@ -234,9 +241,8 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		memset(ctx, 0, sizeof(fb_context_t));
 		ret->context = ctx;
 		sem_init(&ctx->lock, 0, 0);
+		ctx->thread = pthread_self();
 	}
-	ret->proc = run;
-	ret->userdata = userdata;
 
 	return ret;
 }
@@ -305,6 +311,8 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 	fiber_t* ret = 0;
 	if ((!primary && run) || (primary && !run)) return ret;
 	ret = (fiber_t*)fballoc(sizeof(fiber_t));
+	ret->proc = run;
+	ret->userdata = userdata;
 	if (primary && run) {
 		if (!stack) stack = FIBER_STACK_SIZE;
 		ret->current = primary->current;
@@ -316,8 +324,6 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		ret->stack_size = 0;
 		ret->context = ConvertThreadToFiber(0);
 	}
-	ret->proc = run;
-	ret->userdata = userdata;
 
 	return ret;
 }
@@ -360,6 +366,8 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 	ucontext_t* ctx = 0;
 	if ((!primary && run) || (primary && !run)) return ret;
 	ret = (fiber_t*)fballoc(sizeof(fiber_t));
+	ret->proc = run;
+	ret->userdata = userdata;
 	if (primary && run) {
 		if (!stack) stack = FIBER_STACK_SIZE;
 		ctx = (ucontext_t*)fballoc(sizeof(ucontext_t));
@@ -381,8 +389,6 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		ret->stack_size = 0;
 		ret->context = ctx;
 	}
-	ret->proc = run;
-	ret->userdata = userdata;
 
 	return ret;
 }
