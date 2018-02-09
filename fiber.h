@@ -238,19 +238,7 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 
 #else /* FB_OS_WIN */
 
-typedef union fiber_pointer_t {
-	fiber_t* fb;
-	struct {
-		unsigned int p0;
-		unsigned int p1;
-	};
-} fiber_pointer_t;
-
-FBIMPL static void fiber_proc_impl(unsigned int p0, unsigned int p1) {
-	fiber_pointer_t p;
-	fiber_t* fb = 0;
-	p.p0 = p0; p.p1 = p1;
-	fb = p.fb;
+FBIMPL static void fiber_proc_impl(fiber_t* fb) {
 	if (!fb) return;
 
 	fb->proc(fb);
@@ -268,15 +256,14 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 	if ((!primary && run) || (primary && !run)) return ret;
 	ret = (fiber_t*)fballoc(sizeof(fiber_t));
 	if (primary && run) {
-		fiber_pointer_t p;
 		if (!stack) stack = FIBER_STACK_SIZE;
 		ctx = (ucontext_t*)fballoc(sizeof(ucontext_t));
 		memset(ctx, 0, sizeof(ucontext_t));
+		getcontext(ctx);
 		ctx->uc_stack.ss_sp = fballoc(stack);
 		ctx->uc_stack.ss_size = stack;
 		ctx->uc_stack.ss_flags = 0;
-		p.fb = ret;
-		makecontext(ctx, (void (*)())fiber_proc_impl, 2, p.p0, p.p1);
+		makecontext(ctx, (void (*)())fiber_proc_impl, 1, ret);
 		ret->current = primary->current;
 		ret->stack_size = stack;
 		ret->context = ctx;
@@ -314,6 +301,7 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 	if (!fb) return false;
 	curr = *fb->current; 
 	*fb->current = fb;
+	((ucontext_t*)fb->context)->uc_link = curr->context;
 	swapcontext((ucontext_t*)curr->context, (ucontext_t*)fb->context);
 
 	return true;
