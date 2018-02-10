@@ -23,9 +23,6 @@ Read comments [in code](fiber.h) to get the usage, or start with a simple [examp
 
 * Windows backend with [`fiber` functions](https://msdn.microsoft.com/en-us/library/windows/desktop/ms684847(v=vs.85).aspx#fiber_functions)
 * POSIX backend with [`setcontext` functions](https://en.wikipedia.org/wiki/Setcontext)
-* POSIX backend with [`pthread` functions](https://en.wikipedia.org/wiki/POSIX_Threads)
-	* Threads have isolate stacks and are parallelly executed; while fibers are serially executed. This `pthread` backend runs serially to simulate fiber concurrency with isolate stacks for each fiber
-	* Define an `FB_PTHREAD` before `#include "fiber.h"` to enable the threaded backend
 
 ### Drafting
 

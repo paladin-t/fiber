@@ -5,8 +5,7 @@
 **
 ** Copyright (C) 2017 - 2018 Wang Renxin
 **
-** Just #include "fiber.h" before using this library. Define an `FB_PTHREAD` macro
-** before including this header to use pthread as backend.
+** Just #include "fiber.h" before using this library.
 **
 ** Permission is hereby granted, free of charge, to any person obtaining a copy of
 ** this software and associated documentation files (the "Software"), to deal in
@@ -57,10 +56,7 @@
 
 #include <memory.h>
 #include <stdlib.h>
-#if defined FB_PTHREAD
-#	include <pthread.h>
-#	include <semaphore.h>
-#elif defined FB_OS_WIN
+#if defined FB_OS_WIN
 #	include <Windows.h>
 #elif defined FB_OS_APPLE
 #	define _XOPEN_SOURCE 600
@@ -176,114 +172,7 @@ FBAPI static bool_t fiber_switch(fiber_t* fb);
 ** Implementation
 */
 
-#if defined FB_PTHREAD
-
-/*
-** Threads have isolate stacks and are parallelly executed; while fibers are
-** serially executed. This pthread backend runs serially to simulate fiber
-** concurrency with isolate stacks for each fiber.
-*/
-
-typedef struct fb_context_t {
-	struct fb_context_t* back;
-	sem_t lock;
-	pthread_attr_t attr;
-	pthread_t thread;
-} fb_context_t;
-
-FBIMPL static void fiber_proc_impl(fiber_t* fb) {
-	fb_context_t* ctx = 0;
-	fb_context_t* back = 0;
-	if (!fb) return;
-
-	ctx = (fb_context_t*)fb->context;
-	sem_wait(&ctx->lock);
-	back = ctx->back;
-	fb->proc(fb);
-	sem_post(&back->lock);
-}
-
-FBAPI static bool_t fiber_is_current(const fiber_t* const fb) {
-	pthread_t curr;
-	fb_context_t* ctx = 0;
-	if (!fb) return false;
-
-	curr = pthread_self();
-	ctx = (fb_context_t*)fb->context;
-
-	return !!pthread_equal(curr, ctx->thread);
-}
-
-FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc run, void* userdata) {
-	fiber_t* ret = 0;
-	if ((!primary && run) || (primary && !run)) return ret;
-	ret = (fiber_t*)fballoc(sizeof(fiber_t));
-	ret->proc = run;
-	ret->userdata = userdata;
-	if (primary && run) {
-		fb_context_t* ctx = 0;
-		if (!stack) stack = FIBER_STACK_SIZE;
-		ret->current = primary->current;
-		ret->stack_size = stack;
-		ctx = fballoc(sizeof(fb_context_t));
-		memset(ctx, 0, sizeof(fb_context_t));
-		ret->context = ctx;
-		sem_init(&ctx->lock, 0, 0);
-		pthread_attr_init(&ctx->attr);
-		pthread_attr_setstacksize(&ctx->attr, stack);
-		pthread_create(&ctx->thread, &ctx->attr, (void*(*)(void*))fiber_proc_impl, ret);
-	} else {
-		fb_context_t* ctx = 0;
-		ret->current = (fiber_t**)fballoc(sizeof(fiber_t*));
-		*ret->current = ret;
-		ret->stack_size = 0;
-		ctx = fballoc(sizeof(fb_context_t));
-		memset(ctx, 0, sizeof(fb_context_t));
-		ret->context = ctx;
-		sem_init(&ctx->lock, 0, 0);
-		ctx->thread = pthread_self();
-	}
-
-	return ret;
-}
-
-FBAPI static bool_t fiber_delete(fiber_t* fb) {
-	fb_context_t* ctx = 0;
-	if (!fb) return false;
-	if (fb->proc) {
-		ctx = (fb_context_t*)fb->context;
-		sem_post(&ctx->lock);
-		sem_destroy(&ctx->lock);
-		pthread_join(ctx->thread, 0);
-		pthread_attr_destroy(&ctx->attr);
-		fbfree(ctx);
-	} else {
-		ctx = (fb_context_t*)fb->context;
-		sem_post(&ctx->lock);
-		sem_destroy(&ctx->lock);
-		fbfree(ctx);
-		fbfree(fb->current);
-	}
-	fbfree(fb);
-
-	return true;
-}
-
-FBAPI static bool_t fiber_switch(fiber_t* fb) {
-	fb_context_t* ctx = 0;
-	fb_context_t* back = 0;
-	if (!fb) return false;
-	ctx = (fb_context_t*)fb->context;
-	back = (fb_context_t*)(*fb->current)->context;
-	ctx->back = back;
-	*fb->current = fb;
-	sem_post(&ctx->lock);
-	sem_wait(&back->lock);
-
-	return true;
-}
-
-#elif defined FB_OS_WIN
+#if defined FB_OS_WIN
 
 typedef LPFIBER_START_ROUTINE FiberRoutine;
 
