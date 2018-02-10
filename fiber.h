@@ -55,12 +55,12 @@
 #endif
 
 #include <memory.h>
+#include <stdint.h>
 #include <stdlib.h>
 #if defined FB_OS_WIN
 #	include <Windows.h>
 #elif defined FB_OS_APPLE
-#	define _XOPEN_SOURCE 600
-#	include <ucontext.h>
+#	include "taskimpl.h"
 #else /* Backend macro. */
 #	include <ucontext.h>
 #endif /* Backend macro. */
@@ -73,6 +73,18 @@ extern "C" {
 ** {========================================================
 ** Declaration
 */
+
+#if INTPTR_MAX == INT32_MAX
+#	define FB32BITENV
+#elif INTPTR_MAX == INT64_MAX
+#	define FB64BITENV
+#else
+#	error "Environment not 32 or 64-bit."
+#endif
+
+#if defined FB_OS_APPLE && defined FB64BITENV
+#	define FBSEPCMP
+#endif /* FB_OS_APPLE && FB64BITENV */
 
 #ifndef FBAPI
 #	define FBAPI
@@ -238,11 +250,21 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 
 #else /* Backend macro. */
 
+#if defined FBSEPCMP
+FBIMPL static void fiber_proc_impl(unsigned fst, unsigned scd) {
+	uintptr_t ptr = ((uintptr_t)fst) | ((uintptr_t)scd << 32);
+	fiber_t* fb = ptr;
+	if (!fb) return;
+
+	fb->proc(fb);
+}
+#else /* FBSEPCMP */
 FBIMPL static void fiber_proc_impl(fiber_t* fb) {
 	if (!fb) return;
 
 	fb->proc(fb);
 }
+#endif /* FBSEPCMP */
 
 FBAPI static bool_t fiber_is_current(const fiber_t* const fb) {
 	if (!fb) return false;
@@ -265,7 +287,17 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		ctx->uc_stack.ss_sp = fballoc(stack);
 		ctx->uc_stack.ss_size = stack;
 		ctx->uc_stack.ss_flags = 0;
-		makecontext(ctx, (void (*)())fiber_proc_impl, 1, ret);
+#if defined FBSEPCMP
+		do {
+			uintptr_t fst = ret;
+			uintptr_t scd = ret;
+			fst &= 0x00000000ffffffff;
+			scd >>= 32;
+			makecontext(ctx, (void(*)())fiber_proc_impl, 2, (unsigned)fst, (unsigned)scd);
+		} while (0);
+#else /* FBSEPCMP */
+		makecontext(ctx, (void(*)())fiber_proc_impl, 1, ret);
+#endif /* FBSEPCMP */
 		ret->current = primary->current;
 		ret->stack_size = stack;
 		ret->context = ctx;
@@ -273,7 +305,6 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		ret->current = (fiber_t**)fballoc(sizeof(fiber_t*));
 		ctx = (ucontext_t*)fballoc(sizeof(ucontext_t));
 		memset(ctx, 0, sizeof(ucontext_t));
-		getcontext(ctx);
 		*ret->current = ret;
 		ret->stack_size = 0;
 		ret->context = ctx;
@@ -301,7 +332,6 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 	if (!fb) return false;
 	curr = *fb->current; 
 	*fb->current = fb;
-	((ucontext_t*)fb->context)->uc_link = curr->context;
 	swapcontext((ucontext_t*)curr->context, (ucontext_t*)fb->context);
 
 	return true;

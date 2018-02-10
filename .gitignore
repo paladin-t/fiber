@@ -1,0 +1,8 @@
+/.vs/fiber/v14
+/fiber.xcodeproj/project.xcworkspace/xcuserdata/*.*
+/fiber.xcodeproj/xcuserdata/*.*
+/Debug
+/Release
+/x64
+/fiber.VC.db
+*.DS_Store
