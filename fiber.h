@@ -253,7 +253,7 @@ FBAPI static bool_t fiber_switch(fiber_t* fb) {
 #if defined FBSEPCMP
 FBIMPL static void fiber_proc_impl(unsigned fst, unsigned scd) {
 	uintptr_t ptr = ((uintptr_t)fst) | ((uintptr_t)scd << 32);
-	fiber_t* fb = ptr;
+	fiber_t* fb = (fiber_t*)ptr;
 	if (!fb) return;
 
 	fb->proc(fb);
@@ -289,8 +289,8 @@ FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc ru
 		ctx->uc_stack.ss_flags = 0;
 #if defined FBSEPCMP
 		do {
-			uintptr_t fst = ret;
-			uintptr_t scd = ret;
+			uintptr_t fst = (uintptr_t)ret;
+			uintptr_t scd = (uintptr_t)ret;
 			fst &= 0x00000000ffffffff;
 			scd >>= 32;
 			makecontext(ctx, (void(*)())fiber_proc_impl, 2, (unsigned)fst, (unsigned)scd);
