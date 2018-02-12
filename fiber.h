@@ -60,7 +60,14 @@
 #if defined FB_OS_WIN
 #	include <Windows.h>
 #elif defined FB_OS_APPLE
+	/* The `context` API was deprecated on Apple platforms, so we need an alternative. */
+#	ifdef __cplusplus
+	extern "C" {
 #	include "taskimpl.h"
+	}
+#	else /* __cplusplus */
+#	include "taskimpl.h"
+#	endif /* __cplusplus */
 #else /* Backend macro. */
 #	include <ucontext.h>
 #endif /* Backend macro. */
