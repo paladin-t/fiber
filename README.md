@@ -23,7 +23,8 @@ Read comments [in code](fiber.h) to get the usage, or start with a simple [examp
 
 * Windows backend with [`fiber` functions](https://msdn.microsoft.com/en-us/library/windows/desktop/ms684847(v=vs.85).aspx#fiber_functions)
 * POSIX backend with [`setcontext` functions](https://en.wikipedia.org/wiki/Setcontext)
+* JavaScript backend with [`asyncify` functions](http://kripken.github.io/emscripten-site/docs/api_reference/emscripten.h.html#asyncify-functions)
 
 ### Drafting
 
-This library is supposed to be cross platform as possible. However it's drafting because I've only implemented and tested it on Windows and POSIX systems. Supporting for more platforms will be added in the future; any pull requests are welcome.
+This library is supposed to be cross platform as possible. However it's drafting because I've only implemented and tested it on Windows, POSIX and JavaScript platforms. Supporting for more platforms will be added in the future; any pull requests are welcome.

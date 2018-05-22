@@ -28,7 +28,9 @@
 #ifndef __FIBER_H__
 #define __FIBER_H__
 
-#if defined _WIN64
+#if defined __EMSCRIPTEN__
+#	define FB_OS_EMSCRIPTEN
+#elif defined _WIN64
 #	define FB_OS_WIN
 #	define FB_OS_WIN64
 #elif defined _WIN32
@@ -57,7 +59,9 @@
 #include <memory.h>
 #include <stdint.h>
 #include <stdlib.h>
-#if defined FB_OS_WIN
+#if defined FB_OS_EMSCRIPTEN
+#	include <emscripten.h>
+#elif defined FB_OS_WIN
 #	include <Windows.h>
 #elif defined FB_OS_APPLE
 	/* The `context` API was deprecated on Apple platforms, so we need an alternative. */
@@ -191,7 +195,99 @@ FBAPI static bool_t fiber_switch(fiber_t* fb);
 ** Implementation
 */
 
-#if defined FB_OS_WIN
+#if defined FB_OS_EMSCRIPTEN
+
+typedef struct emscripten_context_t {
+	fiber_t* primary;
+	union {
+		emscripten_coroutine emco;
+		fiber_t* next;
+	};
+} emscripten_context_t;
+
+FBIMPL static void fiber_proc_impl(fiber_t* fb) {
+	if (!fb) return;
+
+	fb->proc(fb);
+}
+
+FBAPI static bool_t fiber_is_current(const fiber_t* const fb) {
+	if (!fb) return false;
+
+	return *fb->current == fb;
+}
+
+FBAPI static fiber_t* fiber_create(fiber_t* primary, size_t stack, fiber_proc run, void* userdata) {
+	fiber_t* ret = 0;
+	emscripten_context_t* ctx = 0;
+	if ((!primary && run) || (primary && !run)) return ret;
+	ret = (fiber_t*)fballoc(sizeof(fiber_t));
+	ret->proc = run;
+	ret->userdata = userdata;
+	if (primary && run) {
+		if (!stack) stack = FIBER_STACK_SIZE;
+		ret->current = primary->current;
+		ret->stack_size = stack;
+		ctx = (emscripten_context_t*)fballoc(sizeof(emscripten_context_t));
+		memset(ctx, 0, sizeof(emscripten_context_t));
+		ctx->primary = primary;
+		ctx->emco = emscripten_coroutine_create((em_arg_callback_func)fiber_proc_impl, ret, stack);
+		ret->context = ctx;
+	} else {
+		ret->current = (fiber_t**)fballoc(sizeof(fiber_t*));
+		*ret->current = ret;
+		ret->stack_size = 0;
+		ctx = (emscripten_context_t*)fballoc(sizeof(emscripten_context_t));
+		memset(ctx, 0, sizeof(emscripten_context_t));
+		ctx->primary = ret;
+		ret->context = ctx;
+	}
+
+	return ret;
+}
+
+FBAPI static bool_t fiber_delete(fiber_t* fb) {
+	emscripten_context_t* ctx = 0;
+	if (!fb) return false;
+	ctx = (emscripten_context_t*)fb->context;
+	if (fb->proc) {
+		// Using `free` to clean up the emscripten coroutine, this is an undocumented usage,
+		// see https://github.com/kripken/emscripten/issues/6540 for discussion.
+		free(ctx->emco);
+		fbfree(ctx);
+	} else {
+		fbfree(ctx);
+		fbfree(fb->current);
+	}
+	fbfree(fb);
+
+	return true;
+}
+
+FBAPI static bool_t fiber_switch(fiber_t* fb) {
+	fiber_t* prev = 0;
+	fiber_t* primary = 0;
+	emscripten_context_t* ctx = 0;
+	if (!fb) return false;
+	prev = *fb->current;
+	*fb->current = fb;
+	primary = (fiber_t*)((emscripten_context_t*)fb->context)->primary;
+	ctx = (emscripten_context_t*)primary->context;
+	ctx->next = fb;
+	if (prev->proc) {
+		emscripten_yield();
+	} else {
+		while (ctx->next && ctx->next != primary) {
+			emscripten_context_t* to = (emscripten_context_t*)ctx->next->context;
+			*fb->current = ctx->next;
+			emscripten_coroutine_next(to->emco);
+		}
+	}
+
+	return true;
+}
+
+#elif defined FB_OS_WIN
 
 typedef LPFIBER_START_ROUTINE FiberRoutine;
 
